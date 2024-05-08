@@ -53,20 +53,27 @@ def create_arg_parser() -> argparse.Namespace:
     return args
 
 
-def format_discussion(comments):
-    pass
+def format_discussion(comments, newlines_within=False):
+    discussion_texts = [comment["TEXT-CLEAN"] for comment in comments]
+    if not newlines_within:
+        discussion_texts = [str(text).replace("\n", " ") for text in discussion_texts]
+    return "\n\n".join(discussion_texts)
 
 
 def create_prompt(example, prompt_type):
     # Prompt templates
     page_title = example["PAGE-TITLE"]  # (Wikipedia page title)
     discussion_title = example["DISCUSSION-TITLE"]  # (Talk page discussion title)
-    discussion_text_first_comment = str(example["COMMENTS"][0][
-        "TEXT-CLEAN"
-    ]).replace("\n", " ")  # (first comment of discussion)
-    # discussion_text_full = format_discussion(
-    #     example["COMMENTS"]
-    # )  # (full discussion with all comments)
+    if prompt_type not in []:
+        discussion_text_first_comment = str(
+            example["COMMENTS"][0]["TEXT-CLEAN"]
+        ).replace(
+            "\n", " "
+        )  # (first comment of discussion)
+    else:
+        discussion_text_full = format_discussion(
+            example["COMMENTS"]
+        )  # (full discussion with all comments)
 
     if prompt_type == "simple_oneshot":
         return f"""Determine if the following Wikipedia Talk Page discussion is about fact-checking. Answer YES or NO and then explain your answer. Discussion: {discussion_text_first_comment}"""
@@ -100,14 +107,15 @@ if __name__ == "__main__":
 
     # Load in test set
     dataset = load_dataset("json", data_files=args.input_filename)["train"]
+    # Select first 5 for testing code
     dataset = dataset.select(range(5))
 
     if torch.cuda.is_available():
         device = torch.device("cuda")
-        print('Using GPU')
+        print("Using GPU")
     else:
         device = torch.device("cpu")
-        print('Using CPU')
+        print("Using CPU")
 
     torch.set_default_dtype(torch.float16)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
@@ -121,10 +129,12 @@ if __name__ == "__main__":
             "tokenizer": tokenizer,
             "model": model,
             "temperature": args.temperature,
-            "device": device
+            "device": device,
         },
     )
 
     # Create DataFrame from processed_data and save to a file
     df = pd.DataFrame(processed_data)
-    df[['DISCUSSION-ID', 'generated_text']].to_csv(args.output_filename, sep='\t', index=False)
+    df[["DISCUSSION-ID", "generated_text"]].to_csv(
+        args.output_filename, sep="\t", index=False
+    )
